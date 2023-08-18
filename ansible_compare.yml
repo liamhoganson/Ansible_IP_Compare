@@ -1,0 +1,49 @@
+---
+- hosts: routers
+  name: Compare Public IPs between NIPAP and router
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars:
+      ansible_network_os: cisco.ios.ios
+  tasks:
+
+  - name: 1. Grab Public IPs from router
+    cisco.iosxr.iosxr_command:
+      commands:
+        - sh bgp public_ip/prefix longer-prefixes
+        - sh bgp public_ip/prefix longer-prefixes
+        - sh bgp public_ip/prefix longer-prefixes
+        - sh bgp public_ip/prefix longer-prefixes
+        - sh bgp public_ip/prefix longer-prefixes
+        - sh bgp public_ip/prefix longer-prefixes
+    register: core_public_ips
+
+  - name: Set core public IP list as fact
+    set_fact:
+     core_public_ips_regex: "{{ core_public_ips.stdout_lines | ansible.builtin.regex_findall('(?:\\d{1,3}\\.){3}\\d{1,3}(?:/\\d\\d?)') }}"
+  - debug:
+     msg: "{{ core_public_ips_regex }}"
+
+- hosts: Linux
+  gather_facts: no
+  tasks:
+    - name: 2. Grab Public IPs from NIPAP
+      shell: |
+       nipap address list public_ip/prefix
+       nipap address list public_ip/prefix
+       nipap address list public_ip/prefix
+       nipap address list public_ip/prefix
+       nipap address list public_ip/prefix
+       nipap address list public_ip/prefix
+      register: nipap_output
+
+    
+    - name: Set NIPAP Public IPs as fact
+      set_fact:
+       nipap_output_regex: "{{ nipap_output.stdout_lines | ansible.builtin.regex_findall('(?:\\d{1,3}\\.){3}\\d{1,3}(?:/\\d\\d?)') }}"
+    - debug:
+       msg: "{{ nipap_output_regex }}"
+
+    - name: 3. Displays IPs found in Core Router but not in NIPAP
+      debug:
+       msg: " {{ hostvars['router']['core_public_ips_regex'] |difference(nipap_output_regex)}}"
